@@ -188,8 +188,21 @@ wss.on('connection', (ws, req) => {
   
   // Create UDP socket to communicate with SIP server
   const udpClient = dgram.createSocket('udp4');
-  const targetHost = process.env.SIP_SERVER || '103.9.14.223';
-  const targetPort = parseInt(process.env.SIP_PORT || '5060', 10);
+  let targetHost = process.env.SIP_SERVER || '103.9.14.223';
+  let targetPort = parseInt(process.env.SIP_PORT || '5060', 10);
+
+  // Extract target host/port from URL query if provided (e.g. /sip-bridge?target=192.168.10.249)
+  try {
+    const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const qTarget = reqUrl.searchParams.get('target') || reqUrl.searchParams.get('host');
+    if (qTarget) {
+      const parts = qTarget.split(':');
+      targetHost = parts[0];
+      if (parts[1]) targetPort = parseInt(parts[1], 10);
+    }
+  } catch (e) {}
+
+  console.log(`[Bridge] Route initialized for target: ${targetHost}:${targetPort}`);
 
   // Keep-alive ping interval to prevent proxy timeouts
   const pingInterval = setInterval(() => {
@@ -220,6 +233,16 @@ wss.on('connection', (ws, req) => {
         ws.send('\r\n');
       }
       return;
+    }
+
+    // Dynamically detect destination SIP host from Request-URI if present
+    const uriMatch = sipText.match(/^[A-Z]+\s+sip:(?:[^@]+@)?([a-zA-Z0-9.-]+)(?::(\d+))?/m);
+    if (uriMatch && uriMatch[1]) {
+      const uriHost = uriMatch[1];
+      if (uriHost !== '127.0.0.1' && uriHost !== 'localhost') {
+        targetHost = uriHost;
+        if (uriMatch[2]) targetPort = parseInt(uriMatch[2], 10);
+      }
     }
 
     const firstLine = sipText.split('\r\n')[0];

@@ -205,11 +205,12 @@
 
   function getDefaultWssUrl() {
     const loc = window.location;
+    const domain = (cfgDomain && cfgDomain.value.trim()) || '103.9.14.223';
     if (loc.protocol === 'http:' || loc.protocol === 'https:') {
       const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${proto}//${loc.host}/sip-bridge`;
+      return `${proto}//${loc.host}/sip-bridge?target=${encodeURIComponent(domain)}`;
     }
-    return `ws://localhost:3000/sip-bridge`;
+    return `ws://localhost:3000/sip-bridge?target=${encodeURIComponent(domain)}`;
   }
 
   function saveSettings() {
