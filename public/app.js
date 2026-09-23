@@ -642,8 +642,14 @@
     session.on('sdp', (e) => {
       if (e.originator === 'remote' && e.type === 'answer') {
         let sdp = e.sdp;
+        console.log('[Remote SDP Answer from PBX]:\n' + sdp);
+        const hasFingerprint = sdp.includes('a=fingerprint:');
+        const hasRtcpMux = sdp.includes('a=rtcp-mux');
+        const mediaMatch = sdp.match(/m=audio[^\r\n]+/);
+        const mediaLine = mediaMatch ? mediaMatch[0] : 'm=audio';
+
         // Repair 1: Auto-inject rtcp-mux if Asterisk omitted it
-        if (!sdp.includes('a=rtcp-mux') && sdp.includes('m=audio')) {
+        if (!hasRtcpMux && sdp.includes('m=audio')) {
           sdp = sdp.replace(/(m=audio[^\r\n]+[\r\n]+)/, '$1a=rtcp-mux\r\n');
         }
         // Repair 2: Chrome rejects a=setup:actpass in an Answer; convert to passive
@@ -655,7 +661,13 @@
           sdp = sdp.replace(/(m=audio[^\r\n]+[\r\n]+)/, '$1a=mid:0\r\n');
         }
         e.sdp = sdp;
-        addLog('SDP', `Answer received from server (repaired for WebRTC)`, 'info');
+
+        if (!hasFingerprint) {
+          addLog('SDP-ALERT', `⚠️ Remote SDP lacks DTLS fingerprint (${mediaLine}). Asterisk sent plain unencrypted RTP!`, 'error');
+          addLog('FIX', 'To fix this: In FreePBX -> Extension 8101 -> Advanced -> Enable DTLS: Yes, Media Encryption: DTLS-SRTP', 'warn');
+        } else {
+          addLog('SDP', `Answer received with valid DTLS fingerprint (${mediaLine})`, 'success');
+        }
       }
     });
 
