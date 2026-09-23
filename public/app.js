@@ -633,6 +633,32 @@
       cleanupCallUI();
     });
 
+    session.on('peerconnection:setremotedescriptionfailed', (err) => {
+      addLog('WEBRTC', `❌ setRemoteDescription Failed: ${err.message || err}`, 'error');
+      addLog('HELP', 'Asterisk extension requires DTLS-SRTP. In FreePBX: Extension 8101 -> Advanced -> Enable DTLS: Yes, Media Encryption: DTLS-SRTP, Use AVPF: Yes.', 'warn');
+    });
+
+    // Inspect and auto-repair remote SDP from Asterisk to ensure browser compatibility
+    session.on('sdp', (e) => {
+      if (e.originator === 'remote' && e.type === 'answer') {
+        let sdp = e.sdp;
+        // Repair 1: Auto-inject rtcp-mux if Asterisk omitted it
+        if (!sdp.includes('a=rtcp-mux') && sdp.includes('m=audio')) {
+          sdp = sdp.replace(/(m=audio[^\r\n]+[\r\n]+)/, '$1a=rtcp-mux\r\n');
+        }
+        // Repair 2: Chrome rejects a=setup:actpass in an Answer; convert to passive
+        if (sdp.includes('a=setup:actpass')) {
+          sdp = sdp.replace(/a=setup:actpass/g, 'a=setup:passive');
+        }
+        // Repair 3: Ensure a=mid is present if bundled
+        if (!sdp.includes('a=mid:') && sdp.includes('m=audio')) {
+          sdp = sdp.replace(/(m=audio[^\r\n]+[\r\n]+)/, '$1a=mid:0\r\n');
+        }
+        e.sdp = sdp;
+        addLog('SDP', `Answer received from server (repaired for WebRTC)`, 'info');
+      }
+    });
+
     session.on('getusermediafailed', (err) => {
       addLog('MIC', `Microphone access error: ${err.message}`, 'error');
     });
