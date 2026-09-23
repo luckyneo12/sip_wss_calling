@@ -575,6 +575,16 @@
       const pc = session.connection;
       addLog('WEBRTC', 'PeerConnection created. Negotiating ICE & SRTP...', 'info');
 
+      // Guard against duplicate 183 SDP answers from Asterisk triggering "Called in wrong state: stable"
+      const origSetRemoteDescription = pc.setRemoteDescription.bind(pc);
+      pc.setRemoteDescription = function(desc) {
+        if (desc && desc.type === 'answer' && pc.signalingState === 'stable') {
+          console.log('[WebRTC Guard] Ignored duplicate SDP answer in stable state.');
+          return Promise.resolve();
+        }
+        return origSetRemoteDescription(desc);
+      };
+
       pc.ontrack = (event) => {
         addLog('AUDIO', 'Remote audio stream received!', 'success');
         if (remoteAudio.srcObject !== event.streams[0]) {
@@ -634,8 +644,15 @@
     });
 
     session.on('peerconnection:setremotedescriptionfailed', (err) => {
-      addLog('WEBRTC', `❌ setRemoteDescription Failed: ${err.message || err}`, 'error');
-      addLog('HELP', 'Asterisk extension requires DTLS-SRTP. In FreePBX: Extension 8101 -> Advanced -> Enable DTLS: Yes, Media Encryption: DTLS-SRTP, Use AVPF: Yes.', 'warn');
+      const msg = err.message || String(err);
+      if (msg.includes('Called in wrong state: stable')) {
+        console.log('[WebRTC] Ignored duplicate 183 SDP transition:', msg);
+        return;
+      }
+      addLog('WEBRTC', `❌ setRemoteDescription Failed: ${msg}`, 'error');
+      if (msg.includes('fingerprint')) {
+        addLog('HELP', 'Asterisk extension requires DTLS-SRTP. In FreePBX: Extension -> Advanced -> Enable DTLS: Yes, Media Encryption: DTLS-SRTP, Use AVPF: Yes.', 'warn');
+      }
     });
 
     // Inspect and auto-repair remote SDP from Asterisk to ensure browser compatibility
