@@ -1,0 +1,29 @@
+{
+  "name": "sip-webrtc-dialer",
+  "version": "1.0.0",
+  "description": "Modern WebRTC SIP Dialer with Live Diagnostic Console & Tata SIP integration",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js",
+    "bridge": "node server/bridge.js"
+  },
+  "keywords": [
+    "sip",
+    "webrtc",
+    "dialer",
+    "websocket",
+    "jssip",
+    "voip",
+    "tata-tele"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "jssip": "^3.10.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

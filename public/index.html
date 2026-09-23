@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tata WebRTC SIP Dialer | Ext 406</title>
+  <meta name="description" content="Production-ready WebRTC SIP WebSocket Dialer for Tata SIP lines with live diagnostic logging.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Glow & Grid -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="app-background"></div>
+
+  <!-- Main Container -->
+  <div class="app-layout">
+    
+    <!-- Top Bar -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Tata SIP Web Dialer</h1>
+          <p class="brand-subtitle">WebRTC • SIP over WebSocket • Live Diagnostics</p>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <!-- Live Status Pill -->
+        <div id="statusPill" class="status-pill status-disconnected" title="Click to view SIP details">
+          <span class="status-dot"></span>
+          <span id="statusText" class="status-label">Disconnected</span>
+        </div>
+
+        <button id="btnOpenSettings" class="btn-icon" title="SIP Credentials & WSS Settings" aria-label="Open Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+
+        <button id="btnRunDiagnostics" class="btn-icon btn-highlight" title="Run Server Port & WSS Diagnostics" aria-label="Run Server Diagnostics">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+          <span class="btn-tooltip">Diagnostics</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace (Grid: Dialer & Live Logs) -->
+    <main class="main-content">
+      
+      <!-- LEFT: Dialer Panel -->
+      <section class="dialer-card glass-panel" aria-label="SIP Phone Dialer">
+        
+        <!-- Active User Badge -->
+        <div class="account-strip">
+          <div class="account-info">
+            <span class="account-ext" id="activeExtBadge">Ext: 406</span>
+            <span class="account-host" id="activeHostBadge">@ 103.9.14.223</span>
+          </div>
+          <button id="btnToggleConnect" class="btn-sm btn-connect">Register</button>
+        </div>
+
+        <!-- Phone Display Screen -->
+        <div class="display-container">
+          <input type="text" id="phoneInput" class="phone-display" placeholder="Enter number..." autocomplete="off">
+          <button id="btnClearInput" class="btn-backspace" title="Backspace" aria-label="Backspace">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+              <line x1="18" y1="9" x2="12" y2="15"></line>
+              <line x1="12" y1="9" x2="18" y2="15"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Dialpad Grid -->
+        <div class="dialpad-grid" role="group" aria-label="Keypad">
+          <button class="key-btn" data-key="1"><span class="key-num">1</span><span class="key-sub">&nbsp;</span></button>
+          <button class="key-btn" data-key="2"><span class="key-num">2</span><span class="key-sub">ABC</span></button>
+          <button class="key-btn" data-key="3"><span class="key-num">3</span><span class="key-sub">DEF</span></button>
+          <button class="key-btn" data-key="4"><span class="key-num">4</span><span class="key-sub">GHI</span></button>
+          <button class="key-btn" data-key="5"><span class="key-num">5</span><span class="key-sub">JKL</span></button>
+          <button class="key-btn" data-key="6"><span class="key-num">6</span><span class="key-sub">MNO</span></button>
+          <button class="key-btn" data-key="7"><span class="key-num">7</span><span class="key-sub">PQRS</span></button>
+          <button class="key-btn" data-key="8"><span class="key-num">8</span><span class="key-sub">TUV</span></button>
+          <button class="key-btn" data-key="9"><span class="key-num">9</span><span class="key-sub">WXYZ</span></button>
+          <button class="key-btn" data-key="*"><span class="key-num">*</span><span class="key-sub">&nbsp;</span></button>
+          <button class="key-btn" data-key="0"><span class="key-num">0</span><span class="key-sub">+</span></button>
+          <button class="key-btn" data-key="#"><span class="key-num">#</span><span class="key-sub">&nbsp;</span></button>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="dialer-actions">
+          <button id="btnCall" class="btn-call" aria-label="Initiate Call">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+            <span>Dial Call</span>
+          </button>
+          
+          <button id="btnHangup" class="btn-hangup hidden" aria-label="End Call">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
+              <line x1="23" y1="1" x2="1" y2="23"/>
+            </svg>
+            <span>End Call</span>
+          </button>
+        </div>
+
+        <!-- In-Call Control Bar -->
+        <div id="inCallControls" class="incall-bar hidden">
+          <button id="btnMute" class="control-btn" title="Mute Microphone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <span>Mute</span>
+          </button>
+
+          <button id="btnHold" class="control-btn" title="Hold Call">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="10" y1="15" x2="10" y2="9"/>
+              <line x1="14" y1="15" x2="14" y2="9"/>
+            </svg>
+            <span>Hold</span>
+          </button>
+
+          <div class="call-timer-box">
+            <span class="timer-label">Duration</span>
+            <span id="callDuration" class="timer-digits">00:00</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT: Live SIP Diagnostics & Packet Inspector -->
+      <section class="logs-card glass-panel" aria-label="SIP Diagnostic Logs">
+        <div class="logs-header">
+          <div class="logs-title-wrap">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <h2 class="logs-title">SIP Packet & WebRTC Inspector</h2>
+          </div>
+          <div class="logs-actions">
+            <button id="btnClearLogs" class="btn-xs" title="Clear log output">Clear</button>
+            <button id="btnCopyLogs" class="btn-xs" title="Copy logs to clipboard">Copy</button>
+          </div>
+        </div>
+
+        <!-- Connection Quick Guide / Tips -->
+        <div id="quickTipsBox" class="quick-tips-box">
+          <div class="tip-badge">TATA SIP CONFIG</div>
+          <p class="tip-text">
+            <strong>Server:</strong> 103.9.14.223 &nbsp;|&nbsp; <strong>Ext:</strong> 406 &nbsp;|&nbsp; <strong>SIP Port:</strong> 5060 (Open)
+            <br>
+            <span class="tip-sub">If direct WSS fails, use the <strong>Local Bridge (ws://localhost:3000/sip-bridge)</strong> or run diagnostics.</span>
+          </p>
+        </div>
+
+        <!-- Console Log Stream -->
+        <div id="logStream" class="log-stream" role="log" aria-live="polite"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: Settings Drawer -->
+  <div id="settingsModal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+      <div class="modal-header">
+        <h3 id="settingsModalTitle" class="modal-title">SIP & WebSocket Settings</h3>
+        <button id="btnCloseSettings" class="btn-close" aria-label="Close Settings">&times;</button>
+      </div>
+      
+      <form id="settingsForm" class="modal-body">
+        <div class="form-group">
+          <label for="cfgExt">Extension / Username</label>
+          <input type="text" id="cfgExt" class="form-input" value="406" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgPass">SIP Password / Secret</label>
+          <input type="password" id="cfgPass" class="form-input" value="GSM123ext" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgDomain">SIP Server / Domain</label>
+          <input type="text" id="cfgDomain" class="form-input" value="103.9.14.223" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgPreset">WebSocket Endpoint Preset</label>
+          <select id="cfgPreset" class="form-select">
+            <option value="custom">-- Custom WebSocket URL --</option>
+            <option value="wss://103.9.14.223:8089/ws">Asterisk WSS (wss://103.9.14.223:8089/ws)</option>
+            <option value="ws://103.9.14.223:8088/ws">Asterisk WS (ws://103.9.14.223:8088/ws)</option>
+            <option value="wss://103.9.14.223/ws">Reverse Proxy WSS (wss://103.9.14.223/ws)</option>
+            <option value="ws://localhost:3000/sip-bridge" selected>Built-in Local Bridge (ws://localhost:3000/sip-bridge)</option>
+            <option value="ws://localhost:8080">Standalone Bridge (ws://localhost:8080)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgWss">WebSocket URL (WSS / WS)</label>
+          <input type="text" id="cfgWss" class="form-input mono" value="ws://localhost:3000/sip-bridge" required>
+          <small class="form-help">Secure web pages require `wss://` or local `ws://localhost`.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="cfgDisplayName">Caller ID / Display Name</label>
+          <input type="text" id="cfgDisplayName" class="form-input" value="Tata Ext 406">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btnTestWss" class="btn-secondary">Test Socket Only</button>
+          <button type="submit" class="btn-primary">Save & Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Server Diagnostics & Port Inspector -->
+  <div id="diagModal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel" role="dialog" aria-modal="true" aria-labelledby="diagModalTitle">
+      <div class="modal-header">
+        <h3 id="diagModalTitle" class="modal-title">Tata Server Connectivity Diagnostics</h3>
+        <button id="btnCloseDiag" class="btn-close" aria-label="Close Diagnostics">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="diag-intro">
+          Scanning target host: <strong id="diagHostLabel">103.9.14.223</strong>
+        </p>
+
+        <div id="diagLoading" class="diag-loading">
+          <div class="spinner"></div>
+          <span>Probing TCP & SIP UDP ports...</span>
+        </div>
+
+        <div id="diagResults" class="diag-results hidden">
+          <table class="diag-table">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>Service</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="diagTableBody"></tbody>
+          </table>
+
+          <div id="diagRecommendation" class="diag-recommendation-box"></div>
+
+          <div class="diag-ssl-help">
+            <h4>Browser SSL / Certificate Notice</h4>
+            <p>If connecting directly to <code>wss://103.9.14.223:8089/ws</code> fails due to self-signed or expired certificate:</p>
+            <ol>
+              <li>Open <a id="directCertLink" href="https://103.9.14.223:8089/ws" target="_blank" rel="noopener">https://103.9.14.223:8089/ws</a> in a new tab.</li>
+              <li>Click <strong>Advanced &rarr; Proceed to 103.9.14.223 (unsafe)</strong>.</li>
+              <li>Return to this dialer and click <strong>Register</strong>!</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="btnRerunDiag" class="btn-primary">Re-run Scan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incoming Call Modal -->
+  <div id="incomingModal" class="modal-overlay hidden">
+    <div class="modal-card glass-panel call-alert-card">
+      <div class="incoming-ring-icon pulsing">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+      </div>
+      <h3 class="incoming-title">Incoming Call</h3>
+      <p id="incomingCaller" class="incoming-caller">Unknown Caller</p>
+      
+      <div class="incoming-actions">
+        <button id="btnRejectCall" class="btn-hangup">Reject</button>
+        <button id="btnAnswerCall" class="btn-call">Answer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Elements -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <!-- JsSIP Bundled Library & App Script -->
+  <script src="jssip.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
