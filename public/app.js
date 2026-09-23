@@ -126,6 +126,112 @@
     }
   }
 
+  // --- Ringback and Incoming Tones ---
+  let ringbackTimer = null;
+  function startRingbackTone() {
+    stopRingbackTone();
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const playBeep = () => {
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.frequency.value = 440;
+        osc2.frequency.value = 480;
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.start();
+        osc2.start();
+        osc1.stop(ctx.currentTime + 1.8);
+        osc2.stop(ctx.currentTime + 1.8);
+      };
+      playBeep();
+      ringbackTimer = setInterval(playBeep, 4000);
+    } catch(e) {}
+  }
+
+  function stopRingbackTone() {
+    if (ringbackTimer) {
+      clearInterval(ringbackTimer);
+      ringbackTimer = null;
+    }
+  }
+
+  let incomingRingtoneTimer = null;
+  function startIncomingRingtone() {
+    stopIncomingRingtone();
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const playRing = () => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(750, ctx.currentTime);
+        osc.frequency.setValueAtTime(850, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1.2);
+      };
+      playRing();
+      incomingRingtoneTimer = setInterval(playRing, 3000);
+    } catch(e) {}
+  }
+
+  function stopIncomingRingtone() {
+    if (incomingRingtoneTimer) {
+      clearInterval(incomingRingtoneTimer);
+      incomingRingtoneTimer = null;
+    }
+  }
+
+  // --- Reliable Audio Stream Provider (Microphone with Virtual Fallback) ---
+  async function getAudioStream() {
+    // 1. Try real microphone
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+        addLog('MIC', 'Microphone stream captured successfully.', 'info');
+        return stream;
+      } catch (err) {
+        addLog('MIC', `⚠️ Direct microphone capture blocked (${err.name}: ${err.message}). Using virtual audio track fallback so call can proceed.`, 'warn');
+      }
+    } else {
+      addLog('MIC', '⚠️ navigator.mediaDevices unavailable (non-HTTPS origin). Using virtual audio track.', 'warn');
+    }
+
+    // 2. Fallback: Virtual Web Audio stream so SDP offer can be created without blocking
+    try {
+      const ctx = getAudioContext();
+      if (ctx) {
+        const osc = ctx.createOscillator();
+        const dst = ctx.createMediaStreamDestination();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.0001; // Silent audio
+        osc.connect(gain);
+        gain.connect(dst);
+        osc.start();
+        return dst.stream;
+      }
+    } catch(e) {
+      console.warn('Virtual stream error:', e);
+    }
+    return null;
+  }
+
   // --- Logger Utility ---
   function addLog(tag, message, type = 'info') {
     const now = new Date();
@@ -376,6 +482,16 @@
       // Start the UA
       ua.start();
 
+      // Send CRLF keep-alive every 10s to keep connection alive indefinitely
+      if (window._sipKeepAliveTimer) clearInterval(window._sipKeepAliveTimer);
+      window._sipKeepAliveTimer = setInterval(() => {
+        if (ua && ua.isConnected()) {
+          try {
+            socket.send('\r\n\r\n');
+          } catch(e) {}
+        }
+      }, 10000);
+
     } catch (err) {
       addLog('ERROR', `Failed to initialize JsSIP: ${err.message}`, 'error');
       setConnectionStatus('error', 'Init Error');
@@ -398,35 +514,43 @@
     incomingSession = session;
     const caller = session.remote_identity.display_name || session.remote_identity.uri.user || 'Unknown Caller';
     
-    addLog('CALL', `Incoming call from: ${caller}`, 'warn');
+    addLog('CALL', `🔔 Incoming call from: ${caller}`, 'warn');
     incomingCaller.textContent = caller;
     incomingModal.classList.remove('hidden');
+    startIncomingRingtone();
 
     session.on('ended', () => {
+      stopIncomingRingtone();
       incomingModal.classList.add('hidden');
       incomingSession = null;
-      addLog('CALL', 'Incoming call cancelled by caller', 'info');
+      addLog('CALL', 'Incoming call ended by caller', 'info');
     });
 
     session.on('failed', () => {
+      stopIncomingRingtone();
       incomingModal.classList.add('hidden');
       incomingSession = null;
-      addLog('CALL', 'Incoming call failed', 'error');
+      addLog('CALL', 'Incoming call failed / cancelled', 'error');
     });
   }
 
   // Answer incoming call
-  btnAnswerCall.addEventListener('click', () => {
+  btnAnswerCall.addEventListener('click', async () => {
     if (incomingSession) {
+      stopIncomingRingtone();
       incomingModal.classList.add('hidden');
       currentSession = incomingSession;
       incomingSession = null;
 
+      const stream = await getAudioStream();
       const options = {
         mediaConstraints: { audio: true, video: false }
       };
+      if (stream) {
+        options.mediaStream = stream;
+      }
 
-      incomingSession.answer(options);
+      currentSession.answer(options);
       attachSessionEvents(currentSession);
       updateCallUIState('connected');
       addLog('CALL', 'Call answered.', 'success');
@@ -436,6 +560,7 @@
   // Reject incoming call
   btnRejectCall.addEventListener('click', () => {
     if (incomingSession) {
+      stopIncomingRingtone();
       incomingModal.classList.add('hidden');
       incomingSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
       incomingSession = null;
@@ -463,15 +588,26 @@
       };
     });
 
+    session.on('connecting', () => {
+      addLog('SIP', `Connecting... [INVITE sent to server]`, 'sip-send');
+    });
+
+    session.on('sending', () => {
+      addLog('SIP', `Sending SDP Offer to destination...`, 'sip-send');
+    });
+
     // Call Progress (180 Ringing, 183 Session Progress)
     session.on('progress', (e) => {
-      addLog('SIP', `Call Progress: ${e.response ? e.response.status_code : '18x'} Ringing...`, 'sip-recv');
+      const code = e.response ? e.response.status_code : '18x';
+      addLog('SIP', `🔔 Call Progress: ${code} Ringing! Destination phone is ringing...`, 'sip-recv');
       setConnectionStatus('calling', 'Ringing...');
+      startRingbackTone();
     });
 
     // Call Accepted (200 OK)
     session.on('accepted', (e) => {
-      addLog('SIP', 'Call Answered! 200 OK received.', 'success');
+      stopRingbackTone();
+      addLog('SIP', '🎉 Call Answered! 200 OK received.', 'success');
       updateCallUIState('connected');
       startCallTimer();
     });
@@ -483,16 +619,22 @@
 
     // Call Ended (BYE)
     session.on('ended', (e) => {
+      stopRingbackTone();
       addLog('CALL', `Call ended (${e.cause || 'Normal Clearing'}).`, 'warn');
       cleanupCallUI();
     });
 
     // Call Failed (Busy, Reject, Error)
     session.on('failed', (e) => {
+      stopRingbackTone();
       let cause = e.cause || 'Unknown Failure';
       if (e.response) cause = `${e.response.status_code} ${e.response.reason_phrase}`;
       addLog('CALL', `Call failed: ${cause}`, 'error');
       cleanupCallUI();
+    });
+
+    session.on('getusermediafailed', (err) => {
+      addLog('MIC', `Microphone access error: ${err.message}`, 'error');
     });
   }
 
@@ -507,6 +649,8 @@
   }
 
   function cleanupCallUI() {
+    stopRingbackTone();
+    stopIncomingRingtone();
     stopCallTimer();
     currentSession = null;
     isMuted = false;
@@ -550,7 +694,7 @@
   }
 
   // --- Call Button (Dial) ---
-  btnCall.addEventListener('click', () => {
+  btnCall.addEventListener('click', async () => {
     const target = phoneInput.value.trim();
     if (!target) {
       addLog('DIAL', 'Please enter a phone number or extension to call.', 'warn');
@@ -572,6 +716,9 @@
     const domain = cfgDomain.value.trim();
     const targetUri = target.includes('@') ? `sip:${target}` : `sip:${target}@${domain}`;
 
+    addLog('CALL', `Preparing audio for call to ${targetUri}...`, 'info');
+    const stream = await getAudioStream();
+
     const options = {
       mediaConstraints: { audio: true, video: false },
       pcConfig: {
@@ -580,29 +727,15 @@
         ]
       }
     };
+    if (stream) {
+      options.mediaStream = stream;
+    }
 
-    // Ensure microphone permission is granted
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => {
-          stream.getTracks().forEach(t => t.stop());
-          try {
-            addLog('CALL', `Calling ${targetUri}...`, 'info');
-            ua.call(targetUri, options);
-          } catch (err) {
-            addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
-          }
-        })
-        .catch((err) => {
-          addLog('MIC', `❌ Microphone permission required: ${err.message}. Please click the lock/mic icon in the browser address bar to allow audio!`, 'error');
-        });
-    } else {
-      try {
-        addLog('CALL', `Calling ${targetUri}...`, 'info');
-        ua.call(targetUri, options);
-      } catch (err) {
-        addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
-      }
+    try {
+      addLog('CALL', `Initiating call to ${targetUri}...`, 'info');
+      ua.call(targetUri, options);
+    } catch (err) {
+      addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
     }
   });
 
