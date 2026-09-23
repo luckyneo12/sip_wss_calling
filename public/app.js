@@ -176,6 +176,7 @@
 
   // --- Load Settings from LocalStorage or Defaults ---
   function loadSettings() {
+    const defaultUrl = getDefaultWssUrl();
     const saved = localStorage.getItem('tata_sip_cfg');
     if (saved) {
       try {
@@ -183,22 +184,29 @@
         cfgExt.value = data.ext || '406';
         cfgPass.value = data.pass || 'GSM123ext';
         cfgDomain.value = data.domain || '103.9.14.223';
-        cfgWss.value = data.wss || getDefaultWssUrl();
+        // Auto-migrate from unreachable 8089 to server's live bridge
+        if (!data.wss || data.wss.includes(':8089/ws')) {
+          cfgWss.value = defaultUrl;
+        } else {
+          cfgWss.value = data.wss;
+        }
         cfgDisplayName.value = data.displayName || 'Tata Ext 406';
-      } catch (e) {}
+      } catch (e) {
+        cfgWss.value = defaultUrl;
+      }
     } else {
-      cfgWss.value = getDefaultWssUrl();
+      cfgWss.value = defaultUrl;
     }
     updateAccountHeader();
   }
 
   function getDefaultWssUrl() {
-    // If running on localhost or custom server, point to local bridge by default
     const loc = window.location;
-    if (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') {
-      return `ws://${loc.host}/sip-bridge`;
+    if (loc.protocol === 'http:' || loc.protocol === 'https:') {
+      const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${loc.host}/sip-bridge`;
     }
-    return `wss://103.9.14.223:8089/ws`;
+    return `ws://localhost:3000/sip-bridge`;
   }
 
   function saveSettings() {
