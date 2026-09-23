@@ -21,6 +21,13 @@ const MIME_TYPES = {
   '.mp3': 'audio/mpeg'
 };
 
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED REJECTION]:', reason);
+});
+
 // Create HTTP Server
 const server = http.createServer((req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
@@ -215,6 +222,9 @@ wss.on('connection', (ws, req) => {
     const text = msg.toString('utf8');
     const firstLine = text.split('\r\n')[0];
     console.log(`[Bridge SIP-RECV from ${rinfo.address}:${rinfo.port}] ${firstLine}`);
+    if (text.includes('183 Session Progress') || text.includes('200 OK') || text.includes('m=audio')) {
+      console.log(`\n=== FULL SIP PACKET FROM PBX ===\n${text}\n=== END PACKET ===\n`);
+    }
     if (ws.readyState === ws.OPEN) {
       ws.send(text);
     }
