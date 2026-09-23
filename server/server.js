@@ -183,38 +183,63 @@ function getRecommendation(tcpPorts, udpResult) {
 const wss = new WebSocketServer({ noServer: true });
 
 wss.on('connection', (ws, req) => {
-  console.log('[Bridge] Client connected to SIP Bridge from', req.socket.remoteAddress);
+  const clientIp = req.socket.remoteAddress;
+  console.log(`[Bridge] Client connected from ${clientIp}`);
   
   // Create UDP socket to communicate with SIP server
   const udpClient = dgram.createSocket('udp4');
   const targetHost = process.env.SIP_SERVER || '103.9.14.223';
   const targetPort = parseInt(process.env.SIP_PORT || '5060', 10);
 
-  udpClient.on('message', (msg) => {
+  // Keep-alive ping interval to prevent proxy timeouts
+  const pingInterval = setInterval(() => {
     if (ws.readyState === ws.OPEN) {
-      ws.send(msg.toString('utf8'));
+      ws.ping();
+    }
+  }, 15000);
+
+  udpClient.on('message', (msg, rinfo) => {
+    const text = msg.toString('utf8');
+    const firstLine = text.split('\r\n')[0];
+    console.log(`[Bridge SIP-RECV from ${rinfo.address}:${rinfo.port}] ${firstLine}`);
+    if (ws.readyState === ws.OPEN) {
+      ws.send(text);
     }
   });
 
   udpClient.on('error', (err) => {
-    console.error('[Bridge] UDP Error:', err.message);
+    console.error('[Bridge UDP Error]:', err.message);
   });
 
   ws.on('message', (data) => {
     const sipText = data.toString('utf8');
+
+    // Handle CRLF keepalive from JsSIP
+    if (sipText === '\r\n\r\n' || sipText === '\r\n' || sipText.trim() === '') {
+      if (ws.readyState === ws.OPEN) {
+        ws.send('\r\n');
+      }
+      return;
+    }
+
+    const firstLine = sipText.split('\r\n')[0];
+    console.log(`[Bridge SIP-SEND to ${targetHost}:${targetPort}] ${firstLine}`);
+
     const buf = Buffer.from(sipText, 'utf8');
     udpClient.send(buf, 0, buf.length, targetPort, targetHost, (err) => {
-      if (err) console.error('[Bridge] UDP Send Error:', err.message);
+      if (err) console.error('[Bridge UDP Send Error]:', err.message);
     });
   });
 
-  ws.on('close', () => {
-    console.log('[Bridge] WebSocket client disconnected');
+  ws.on('close', (code, reason) => {
+    clearInterval(pingInterval);
+    console.log(`[Bridge] WebSocket disconnected (code: ${code}, reason: ${reason ? reason.toString() : 'None'})`);
     try { udpClient.close(); } catch(e) {}
   });
 
   ws.on('error', (err) => {
-    console.error('[Bridge] WebSocket client error:', err.message);
+    clearInterval(pingInterval);
+    console.error('[Bridge WS Error]:', err.message);
     try { udpClient.close(); } catch(e) {}
   });
 });
@@ -224,7 +249,7 @@ server.on('upgrade', (request, socket, head) => {
   const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
 
   if (pathname === '/sip-bridge' || pathname === '/ws') {
-    // Negotiate 'sip' subprotocol if requested
+    // Negotiate 'sip' subprotocol
     const protocols = request.headers['sec-websocket-protocol'] || '';
     const chosenProtocol = protocols.split(',').map(s => s.trim()).includes('sip') ? 'sip' : undefined;
 

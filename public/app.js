@@ -254,11 +254,27 @@
       return;
     }
 
-    // Stop existing UA if active
+    // Stop existing UA if active without letting its 2s timer kill new connections
     if (ua) {
       try {
-        addLog('SIP', 'Stopping previous SIP User Agent instance...', 'info');
+        if (ua._closeTimer) {
+          clearTimeout(ua._closeTimer);
+          ua._closeTimer = null;
+        }
+        if (ua._transport) {
+          ua._transport.close_requested = true;
+          if (ua._transport.socket) {
+            ua._transport.socket.onconnect = () => {};
+            ua._transport.socket.ondisconnect = () => {};
+            ua._transport.socket.ondata = () => {};
+            try { ua._transport.socket.disconnect(); } catch(e) {}
+          }
+        }
         ua.stop();
+        if (ua._closeTimer) {
+          clearTimeout(ua._closeTimer);
+          ua._closeTimer = null;
+        }
       } catch (e) {}
       ua = null;
     }
@@ -304,6 +320,16 @@
         // Provide hint if port / certificate failed
         if (wssUrl.startsWith('wss://') && !e.wasClean) {
           addLog('HINT', 'If using direct WSS (e.g. port 8089), browser may be blocking an untrusted or expired SSL cert. Click Diagnostics or open the WSS link directly in Chrome to accept the cert.', 'warn');
+        }
+
+        // Auto-reconnect if dropped unexpectedly
+        if (ua && !ua._user_closed) {
+          setTimeout(() => {
+            if (ua && !ua.isConnected() && !ua.isConnecting()) {
+              addLog('WSS', 'Re-connecting to bridge...', 'info');
+              ua.start();
+            }
+          }, 1500);
         }
       });
 
@@ -531,10 +557,14 @@
       return;
     }
 
-    if (!ua || !ua.isRegistered()) {
-      addLog('DIAL', 'SIP is not registered yet. Attempting registration first...', 'warn');
+    if (!ua || !ua.isConnected()) {
+      addLog('DIAL', 'WebSocket is disconnected. Reconnecting now...', 'warn');
       initializeUA();
-      // Wait for registration or notify user
+      return;
+    }
+
+    if (!ua.isRegistered()) {
+      addLog('DIAL', 'Extension is still registering... please wait 1-2 seconds.', 'warn');
       return;
     }
 
@@ -550,11 +580,28 @@
       }
     };
 
-    try {
-      addLog('CALL', `Initiating call to ${targetUri}...`, 'info');
-      ua.call(targetUri, options);
-    } catch (err) {
-      addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
+    // Ensure microphone permission is granted
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => {
+          stream.getTracks().forEach(t => t.stop());
+          try {
+            addLog('CALL', `Calling ${targetUri}...`, 'info');
+            ua.call(targetUri, options);
+          } catch (err) {
+            addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
+          }
+        })
+        .catch((err) => {
+          addLog('MIC', `❌ Microphone permission required: ${err.message}. Please click the lock/mic icon in the browser address bar to allow audio!`, 'error');
+        });
+    } else {
+      try {
+        addLog('CALL', `Calling ${targetUri}...`, 'info');
+        ua.call(targetUri, options);
+      } catch (err) {
+        addLog('ERROR', `Call initiation failed: ${err.message}`, 'error');
+      }
     }
   });
 
