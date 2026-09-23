@@ -314,17 +314,32 @@ body {
 .account-info {
   display: flex;
   flex-direction: column;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.account-info:hover {
+  opacity: 0.8;
 }
 
 .account-ext {
   font-size: 0.95rem;
   font-weight: 700;
   color: white;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .account-host {
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-sm {
@@ -335,6 +350,18 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   border: none;
+}
+
+.btn-edit-config {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  border: 1px solid var(--border-subtle);
+}
+
+.btn-edit-config:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .btn-connect {

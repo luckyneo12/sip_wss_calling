@@ -64,11 +64,14 @@
         
         <!-- Active User Badge -->
         <div class="account-strip">
-          <div class="account-info">
+          <div class="account-info" id="accountInfoClickable" title="Click to change Extension / Password / Server">
             <span class="account-ext" id="activeExtBadge">Ext: 406</span>
             <span class="account-host" id="activeHostBadge">@ 103.9.14.223</span>
           </div>
-          <button id="btnToggleConnect" class="btn-sm btn-connect">Register</button>
+          <div class="account-actions">
+            <button id="btnEditConfig" type="button" class="btn-sm btn-edit-config" title="Edit SIP Credentials & Server">⚙️ Edit Config</button>
+            <button id="btnToggleConnect" type="button" class="btn-sm btn-connect">Register</button>
+          </div>
         </div>
 
         <!-- Phone Display Screen -->
@@ -215,9 +218,12 @@
         </div>
 
         <div class="form-group">
-          <label for="cfgWss">WebSocket URL (WSS / WS)</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label for="cfgWss">WebSocket URL (WSS / WS)</label>
+            <button type="button" id="btnUseHostBridge" class="btn-xs" style="color: #93c5fd; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4);">⚡ Use Server Bridge</button>
+          </div>
           <input type="text" id="cfgWss" class="form-input mono" value="ws://localhost:3000/sip-bridge" required>
-          <small class="form-help">Secure web pages require `wss://` or local `ws://localhost`.</small>
+          <small class="form-help">Connects to Tata SIP 5060 through the server's WebSocket bridge.</small>
         </div>
 
         <div class="form-group">

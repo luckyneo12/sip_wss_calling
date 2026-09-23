@@ -37,7 +37,10 @@
   const btnClearLogs = document.getElementById('btnClearLogs');
   const btnCopyLogs = document.getElementById('btnCopyLogs');
 
-  // Modals
+  // Modals & Config Triggers
+  const btnEditConfig = document.getElementById('btnEditConfig');
+  const accountInfoClickable = document.getElementById('accountInfoClickable');
+  const btnUseHostBridge = document.getElementById('btnUseHostBridge');
   const settingsModal = document.getElementById('settingsModal');
   const btnOpenSettings = document.getElementById('btnOpenSettings');
   const btnCloseSettings = document.getElementById('btnCloseSettings');
@@ -642,9 +645,21 @@
   });
 
   // --- Settings Modal Handlers ---
-  btnOpenSettings.addEventListener('click', () => {
+  function openSettings() {
     settingsModal.classList.remove('hidden');
-  });
+  }
+
+  btnOpenSettings.addEventListener('click', openSettings);
+  if (btnEditConfig) btnEditConfig.addEventListener('click', openSettings);
+  if (accountInfoClickable) accountInfoClickable.addEventListener('click', openSettings);
+  if (statusPill) statusPill.addEventListener('click', openSettings);
+
+  if (btnUseHostBridge) {
+    btnUseHostBridge.addEventListener('click', () => {
+      cfgWss.value = getDefaultWssUrl();
+      addLog('CONFIG', `Using Server Bridge: ${cfgWss.value}`, 'info');
+    });
+  }
 
   btnCloseSettings.addEventListener('click', () => {
     settingsModal.classList.add('hidden');
